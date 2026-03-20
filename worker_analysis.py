@@ -1,5 +1,3 @@
-
-
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -46,7 +44,7 @@ print("=" * 60)
 print("1. LOADING DATA & CLASSIFYING ACTIVITIES")
 print("=" * 60)
 
-df = pd.read_csv("C:/Users/HP/Documents/2026 Data Projects/trial conversion/DA_task.csv")
+df = pd.read_csv("C:/Users/HP/Documents/2026 Data Projects/trial conversion/DA task.csv")
 df.columns = df.columns.str.lower()
 for col in ["timestamp", "converted_at", "trial_start", "trial_end"]:
     df[col] = pd.to_datetime(df[col], errors="coerce")
@@ -228,35 +226,56 @@ ax.pie(
 ax.set_title("Overall Conversion Rate")
 
 # Panel 2 - Event volume distribution by outcome
+# Using step histograms so both distributions are fully visible without overlap confusion
 ax = axes[1]
 cap95 = org["total_events"].quantile(0.95)
-for label, grp, color in [
-    ("Converted",     True,  ACCENT),
-    ("Not Converted", False, LIGHT),
+bins_ev = np.linspace(0, cap95, 36)
+for label, grp, color, lw in [
+    ("Not Converted", False, LIGHT,  2.0),
+    ("Converted",     True,  ACCENT, 2.0),
 ]:
     data = org.loc[org["converted"] == grp, "total_events"].clip(upper=cap95)
-    ax.hist(data, bins=35, alpha=0.7, label=label, color=color, edgecolor="white")
+    ax.hist(data, bins=bins_ev, histtype="step", color=color,
+            linewidth=lw, label=f"{label} (n={grp.sum() if hasattr(grp,'sum') else data.shape[0]})")
+    ax.axvline(data.median(), color=color, linewidth=1.2,
+               linestyle="--", alpha=0.75)
+
+# rebuild legend labels with actual counts
+c_ev  = org.loc[ org["converted"], "total_events"].clip(upper=cap95)
+nc_ev = org.loc[~org["converted"], "total_events"].clip(upper=cap95)
+ax.cla()
+bins_ev = np.linspace(0, cap95, 36)
+ax.hist(nc_ev, bins=bins_ev, histtype="step", color=LIGHT,  linewidth=2.0,
+        label=f"Not Converted  (n={len(nc_ev)}, median={nc_ev.median():.0f})")
+ax.hist(c_ev,  bins=bins_ev, histtype="step", color=ACCENT, linewidth=2.0,
+        label=f"Converted  (n={len(c_ev)}, median={c_ev.median():.0f})")
+ax.axvline(nc_ev.median(), color=LIGHT,  linewidth=1.2, linestyle="--", alpha=0.75)
+ax.axvline(c_ev.median(),  color=ACCENT, linewidth=1.2, linestyle="--", alpha=0.75)
 ax.set_xlabel("Total Events During Trial (capped 95th pct)")
 ax.set_ylabel("Organisations")
-ax.set_title("Event Volume Distribution")
-ax.legend()
+ax.set_title("Event Volume Distribution\n(dashed line = median)")
+ax.legend(fontsize=8)
 
 # Panel 3 - Active days distribution by outcome
 ax = axes[2]
-for label, grp, color in [
-    ("Converted",     True,  ACCENT),
-    ("Not Converted", False, LIGHT),
-]:
-    data = org.loc[org["converted"] == grp, "admin_active_days"]
-    ax.hist(data, bins=20, alpha=0.7, label=label, color=color, edgecolor="white")
+c_days  = org.loc[ org["converted"], "admin_active_days"]
+nc_days = org.loc[~org["converted"], "admin_active_days"]
+bins_d  = np.linspace(0, max(c_days.max(), nc_days.max()), 25)
+ax.hist(nc_days, bins=bins_d, histtype="step", color=LIGHT,  linewidth=2.0,
+        label=f"Not Converted  (n={len(nc_days)}, median={nc_days.median():.0f})")
+ax.hist(c_days,  bins=bins_d, histtype="step", color=ACCENT, linewidth=2.0,
+        label=f"Converted  (n={len(c_days)}, median={c_days.median():.0f})")
+ax.axvline(nc_days.median(), color=LIGHT,  linewidth=1.2, linestyle="--", alpha=0.75)
+ax.axvline(c_days.median(),  color=ACCENT, linewidth=1.2, linestyle="--", alpha=0.75)
 ax.set_xlabel("Active Days During Trial")
 ax.set_ylabel("Organisations")
-ax.set_title("Active Days Distribution")
-ax.legend()
+ax.set_title("Active Days Distribution\n(dashed line = median)")
+ax.legend(fontsize=8)
 
 plt.tight_layout()
 plt.savefig(f"{OUT}/01_conversion_overview.png", dpi=150, bbox_inches="tight")
 plt.close()
+print("✓ 01_conversion_overview.png saved")
 
 
 # CHART: KEY METRIC DISTRIBUTIONS  ->  02_feature_distributions.png
