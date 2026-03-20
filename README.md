@@ -13,30 +13,27 @@
 3. [The Central Question](#the-central-question)
 4. [Data Overview](#data-overview)
 5. [Methodology and Analytical Approach](#methodology-and-analytical-approach)
-6. [Key Findings](#key-findings)
-7. [The Admin vs Worker Framework](#the-admin-vs-worker-framework)
-8. [Statistical Analysis](#statistical-analysis)
-9. [Predictive Modelling](#predictive-modelling)
-10. [SQL Data Models](#sql-data-models)
-11. [Recommendations](#recommendations)
-12. [Limitations and Honest Caveats](#limitations-and-honest-caveats)
-13. [Setup and Usage](#setup-and-usage)
+6. [The Admin vs Worker Framework](#the-admin-vs-worker-framework)
+7. [Key Findings](#key-findings)
+8. [Statistical Analysis and Predictive Modelling](#statistical-analysis-and-predictive-modelling)
+9. [SQL Data Models](#sql-data-models)
+10. [Recommendations](#recommendations)
+11. [Limitations and Honest Caveats](#limitations-and-honest-caveats)
+12. [Setup and Usage](#setup-and-usage)
 
 ---
 
 ## Executive Summary
 
-This project analyses trial-to-paid conversion behaviour across **966 trialling organisations** of a B2B workforce scheduling platform. Over 102,895 product events were analysed across a 30-day trial window to understand what separates companies that convert from those that do not.
+This project analyses trial-to-paid conversion behaviour across **966 trialling organisations** of a B2B workforce scheduling platform. Over 102,895 product events were analysed across a 30-day trial window.
 
 ![Conversion Overview](charts/01_conversion_overview.png)
 
-**The headline finding is counterintuitive and important:** converters and non-converters are statistically indistinguishable in their product behaviour. Three separate machine learning models all scored near random chance (AUC 0.48), and no single activity, feature, or behavioural metric significantly predicts who pays.
+The chart above immediately surfaces the scale of the problem. The overall conversion rate is **21.3%** — meaning 760 out of 966 trialling organisations did not pay. Event volume and active days look nearly identical between converters and non-converters, which is the first sign that in-app behaviour alone will not explain who converts.
 
-A second layer of analysis examined whether the product serves two distinct user types — admins and workers — differently. This framework revealed that **51% of trialling organisations never got a single employee onto the platform** after the admin set it up. The product was configured for a workforce that never arrived. This does not directly drive conversion but is a structural risk to post-conversion retention.
+The analytical framework built here is grounded in a structural observation about this product: it serves two fundamentally different users, admins and workers, and treating all activity as equivalent masks that distinction entirely. Splitting events by actor type reveals that **51% of trialling organisations never got a single employee onto the platform** after the admin set it up. The product was configured for a workforce that never arrived.
 
-The most actionable conclusion from the full analysis is that conversion is a procurement decision driven by external factors (pricing, sales conversations, budget cycles, acquisition channel) rather than a product experience decision. The data needed to explain conversion does not currently exist in the product event log. Collecting it is the highest-leverage next step.
-
-**Three concrete, immediately executable recommendations emerge:**
+Three concrete, immediately executable recommendations emerge from the full analysis:
 - Capture company size, industry, and acquisition source at signup
 - Trigger an automated worker onboarding nudge 48 hours after shift creation with zero worker activity
 - Deploy proactive CS outreach between Days 14 and 21 of the trial, before deadline urgency sets in
@@ -53,7 +50,7 @@ This is a B2B SaaS product for workforce scheduling. Businesses use it to build 
 
 This distinction matters enormously for understanding product adoption, churn risk, and conversion. An analysis that treats all events as equivalent misses the fact that admin activity and worker activity tell very different stories about how deeply a product has been embedded in a business.
 
-The motivation for building this analysis around that admin/worker distinction came directly from the data. An initial pass treating all events equally found that converters and non-converters looked essentially the same. That result prompted the question: are we measuring the right users? The answer shaped the entire analytical framework.
+The motivation for building this analysis around that admin/worker distinction came directly from the data. An initial pass treating all events equally found that converters and non-converters looked essentially the same across every metric. That result prompted the question: are we measuring the right users? The answer shaped the entire analytical framework.
 
 ---
 
@@ -61,9 +58,9 @@ The motivation for building this analysis around that admin/worker distinction c
 
 > **What does a company do during its trial that predicts whether it will pay?**
 
-The assumption going in was straightforward, companies that engage more deeply with the product, use more features, stay active for more days, and get more employees onto the platform should be more likely to convert. This is the standard product-led growth hypothesis.
+The assumption going in was straightforward: companies that engage more deeply with the product, use more features, stay active for more days, and get more employees onto the platform should be more likely to convert. This is the standard product-led growth hypothesis.
 
-This analysis tests that hypothesis rigorously across multiple dimensions. The answer challenges it at every level. The insight that falls out of that challenge is more useful than a simple confirmation would have been.
+This analysis tests that hypothesis rigorously across multiple dimensions, including splitting activity by user type, measuring worker engagement depth, modelling time-to-adoption, and training three separate machine learning models. The answer challenges the hypothesis at every level — and the insight that falls out of that challenge is more useful than a simple confirmation would have been.
 
 ---
 
@@ -98,243 +95,117 @@ This analysis tests that hypothesis rigorously across multiple dimensions. The a
 - Zero events found outside the trial window (before `trial_start` or after `trial_end`)
 - Negative time-to-first-activity values clipped to zero
 
-**Activity classification:** All 28 activity types were manually classified into two groups based on product logic.
-
-Worker activities are actions that only an employee would perform: clocking in or out, viewing the mobile schedule, setting availability, requesting shift swaps or handovers, requesting open shifts, viewing shift details, and creating absence requests.
-
-Admin activities are actions that only a manager or owner would perform: creating and assigning shifts, applying templates, approving timesheets, bulk-approving shifts, exporting payroll to Xero, creating budget entries, approving or rejecting absence requests, and editing time clock entries.
-
 ---
 
 ## Methodology and Analytical Approach
 
 The analysis was structured in three layers.
 
-### Layer 1: Overall Behavioural Analysis
+**Layer 1: Baseline Feature Engineering**
 
-The first layer treated all 966 organisations equally and tested whether total engagement (event count, active days, unique features used, time to first activity) differs between converters and non-converters. Mann-Whitney U tests were used rather than t-tests because the distributions are highly right-skewed; the non-parametric test makes no assumptions about normality.
+All 966 organisations were characterised on a set of org-level metrics: total event count, admin event count, worker event count, unique activity types used, active days (admin-side and worker-side separately), and binary flags for specific worker activities (punch clock, availability setting, shift swaps, absence requests, mobile schedule view). A worker engagement depth score (0 to 5) was constructed by summing the binary worker activity flags.
 
-Chi-square tests were applied to all binary feature flags (did this organisation use this activity at least once?) against the conversion outcome. Point-biserial correlation was calculated between continuous engagement metrics and the binary conversion variable.
+**Layer 2: Admin vs Worker Segmentation**
 
-![Feature Distributions](charts/02_feature_distributions.png)
+All 28 activity types were manually classified as either admin actions or worker actions based on product logic. Admin actions are configuration and management tasks performed by managers. Worker actions are operational daily-life tasks performed by employees. Each organisation was then classified into one of three archetypes: both admin and workers active, admin only with workers never joining, and minimal or no engagement. The time gap between first admin action and first worker action was measured as the handoff gap.
 
-### Layer 2: Admin vs Worker Segmentation
+**Layer 3: Statistical Testing and Predictive Modelling**
 
-The second layer split all events into admin-side and worker-side activity based on the manual classification described above. This was motivated by the observation that overall event volume does not differentiate converters from non-converters. The hypothesis was that it is specifically worker adoption, not admin setup, that should predict conversion in a product that serves an entire workforce.
-
-Each organisation was classified into one of three archetypes based on which sides of the product were used during the trial: both admin and workers active, admin only with workers never joining, and minimal or no engagement.
-
-Worker engagement depth was measured on a 0 to 5 scale by counting how many distinct types of worker activity occurred (punch clock, availability setting, shift swaps/handovers, absence requests, mobile schedule view).
-
-The handoff gap was measured as the time between the first admin action and the first worker action for organisations where workers did eventually join.
-
-### Layer 3: Predictive Modelling
-
-Three models were trained on the org-level feature matrix to test whether any combination of behavioural signals could predict conversion: Logistic Regression, Random Forest, and Gradient Boosting. All three were evaluated using 5-fold cross-validated ROC-AUC. Features included total event counts, admin-specific event counts, worker-specific event counts, active days, time to first activity, binary activity flags, and the worker depth score. Standard scaling was applied before logistic regression.
-
-Separate models were trained on admin features only, worker features only, and the full combined feature set to isolate the marginal predictive contribution of the admin/worker split.
-
-Survival analysis (Kaplan-Meier and Cox Proportional Hazards) was applied to model time-to-conversion across different engagement groups. K-Means clustering (k=4) was used to segment organisations by behavioural profile and assess whether any natural cluster showed elevated conversion rates.
-
----
-
-## Key Findings
-
-### Finding 1: Converters and Non-Converters Are Statistically Indistinguishable
-
-| Metric | Converters (median) | Non-Converters (median) | p-value |
-|--------|--------------------|-----------------------|---------|
-| Total events | 8 | 8 | 0.851 |
-| Unique activities | 2 | 2 | 0.650 |
-| Active days | 1 | 1 | 0.820 |
-| Time to first activity | less than 10 minutes | less than 10 minutes | 0.153 |
-
-No metric achieves statistical significance. The two groups are, by every behavioural measure available, the same. Three machine learning models trained to detect the difference between them all scored an AUC of approximately 0.48.
-
-![Correlation Heatmap](charts/07_correlation_heatmap.png)
-
-This is not a data quality problem. It is the data telling us, clearly, that in-app behaviour does not explain who converts.
-
-### Finding 2: Conversion Is a Deadline Decision
-
-52% of all conversions happen in the final 9 days of the trial. Nearly half of all conversions occur on Day 30 itself. Event volume spikes in the final week for both converters and non-converters alike, which means late-trial activity is not a signal of impending conversion — it is a signal of an approaching deadline.
-
-![Trial Timing](charts/08_trial_timing.png)
-
-![Retention and Activity Decay](charts/09_retention_decay.png)
-
-This pattern is consistent with a procurement decision model, not a product value realisation model. Companies are not waking up on Day 8 because they experienced a eureka moment. They are waiting for the clock to run out and then making a cost-benefit decision.
-
-### Finding 3: The Funnel Has One Critical Break Point
-
-The product funnel reveals that the single largest drop-off is not at conversion — it is at the mobile schedule view stage, where 46% of organisations that created a shift never went on to view the schedule on mobile. This is the admin-to-worker handoff failing in plain sight.
-
-![Funnel Analysis](charts/03_funnel_analysis.png)
-
-### Finding 4: Feature Usage Tells a Consistent Story
-
-Across all 28 activity types, no feature shows a statistically significant difference in adoption rate between converters and non-converters. The feature with the strongest positive association is `Scheduling.Shift.Created`, which is the core admin action and the most common activity in the dataset.
-
-![Feature Usage](charts/06_feature_usage.png)
-
-![Feature Uplift Detail](charts/06b_feature_uplift_detail.png)
-
-The activation definition that produces the highest conversion uplift is simply "created at least one shift" (+4.0 percentage points), which is more a reflection of baseline engagement than a meaningful predictor.
-
-![Activation Uplift](charts/04_activation_uplift.png)
-
-### Finding 5: Time to Value Is Identical Across Groups
-
-Converters and non-converters both engage within minutes of starting their trial. There is no early-mover advantage. Speed of initial engagement does not predict conversion.
-
-![Time to Value](charts/05_time_to_value.png)
-
-### Finding 6: Cohort Performance Is Consistent Over Time
-
-Conversion rates across weekly cohorts show no meaningful trend. There is no evidence that earlier or later cohorts convert at different rates. The 21.3% rate is stable across the observed period.
-
-![Cohort Analysis](charts/10_cohort_analysis.png)
+Mann-Whitney U tests compared continuous metrics between converters and non-converters. Chi-square tests assessed the relationship between each binary worker activity flag and conversion. Three Random Forest models were trained and evaluated using 5-fold cross-validated ROC-AUC, one using admin features only, one using worker features only, and one using both combined. Kaplan-Meier survival analysis was applied to model time-to-conversion for worker-active versus admin-only organisations.
 
 ---
 
 ## The Admin vs Worker Framework
 
-The most important analytical decision in this project was to separate admin and worker activity rather than treating all events as equivalent. The rationale for this is grounded in how the product actually works.
+The most important analytical decision in this project was to separate admin and worker activity rather than treating all events as equivalent. The rationale is grounded in how the product actually works.
 
-When an admin creates shifts, approves timesheets, and sets up templates, they are performing configuration tasks. These are one-off or periodic actions. They tell us the admin understands the product and has used it for its intended purpose.
+Admin actions (creating shifts, approving timesheets, applying templates) are configuration tasks. They tell us the admin has used the product for its intended purpose. Worker actions (clocking in, viewing the mobile schedule, setting availability, requesting swaps) are operational tasks that recur daily. They tell us the product has been embedded into how the business actually functions.
 
-When workers clock in, view their schedule, set availability, or request swaps, they are performing operational tasks. These are recurring, daily-life actions. They tell us the product has been embedded into how the business actually functions.
+Only worker adoption creates genuine switching costs. If the admin is the only user, the product can be cancelled with a single decision by one person. If workers are clocking in through it every day, cancellation means disrupting the live operations of the entire workforce.
 
-Only the second category creates genuine switching costs. If the admin is the only user, the product can be cancelled with a single decision by one person. If workers are clocking in through it every day, cancellation means disrupting the live operations of the entire workforce. That is a fundamentally different retention dynamic.
+This framework did not produce the conversion signal that was expected — worker adoption proved not to predict trial conversion. But the framework itself is still correct. The implication has shifted from conversion to retention: worker adoption is likely the key variable for predicting which paying customers stay versus which ones cancel at renewal. That question cannot be answered without post-conversion data, but the groundwork for answering it is laid here.
 
-### The Headline Worker Adoption Finding
+---
+
+## Key Findings
+
+### Finding 1: Converters and Non-Converters Look Identical in the Data
+
+![Feature Distributions](charts/02_feature_distributions.png)
+
+Boxplots of total events, admin events, worker events, and active days show near-perfect overlap between converters and non-converters. Mann-Whitney U tests on all four metrics return p-values well above 0.05 (total events p = 0.851, active days p = 0.820). The two groups are, by every behavioural measure available, statistically indistinguishable.
+
+### Finding 2: Worker Adoption Does Not Predict Conversion
 
 ![Worker Adoption Headline](charts/01_worker_adoption_headline.png)
 
-51% of trialling organisations had the admin set up the product but no worker ever used it. The conversion rates between the two groups are virtually identical (21.7% vs 21.0%, p = 0.85). Worker adoption does not predict conversion.
+This is the central finding. The left panel shows conversion rates of 21.7% for admin-only organisations versus 21.0% for organisations with worker activity — a difference of less than one percentage point that is not statistically significant (chi-square p = 0.85). The middle panel shows that 51% of organisations never had a single worker engage with the product. The right panel shows that of all worker activity in the dataset, 85% is a single action: `Mobile.Schedule.Loaded`. Workers are primarily viewing their schedules passively, not self-managing.
 
-### Worker Activity Impact on Conversion
+### Finding 3: No Individual Worker Activity Drives Conversion
 
 ![Worker Activity Uplift](charts/02_worker_activity_uplift.png)
 
-No individual worker activity type achieves statistical significance as a conversion predictor. Punch clock usage shows the strongest positive association (+1.8 percentage points) but does not reach the 0.05 significance threshold.
+Conversion uplift was calculated for every distinct worker activity type. Punch clock usage shows the strongest association (+1.8 percentage points) but does not reach statistical significance. No worker activity type achieves p < 0.05. The left panel shows uplift values with confidence indicators; the right panel shows the raw conversion rates for orgs that did versus did not perform each activity.
 
-### The Three Company Archetypes
+### Finding 4: Three Distinct Company Profiles Emerge
 
 ![Three Archetypes](charts/03_three_archetypes.png)
 
-| Archetype | N Orgs | Conv Rate | Risk Profile |
-|-----------|--------|-----------|-------------|
-| Both Admin + Workers Active | 371 (38%) | 21.0% | Low churn risk |
-| Admin Only, Workers Never Joined | 489 (51%) | 22.0% | High churn risk |
-| Minimal or No Engagement | 106 (11%) | 20.0% | Low intent |
+Classifying organisations by which side of the product was used reveals three archetypes. The Committed Operator (both admin and workers active, 38% of orgs, 21.0% conversion) represents fully engaged trials. The Incomplete Setup (admin only, 51% of orgs, 22.0% conversion) represents the most commercially concerning group — they convert at the average rate but carry high post-conversion churn risk because the product has never been used by the workforce. The Ghost Trial (minimal engagement, 11% of orgs, 20.0% conversion) represents low-intent signups. The right panel of this chart reveals that the event volume gap between admin and worker activity is large across all archetypes, confirming that admin actions dominate the dataset.
 
-The Incomplete Setup group is both the largest single group and the most commercially concerning. They convert at the average rate but carry the highest post-conversion retention risk.
-
-### The Worker Adoption Funnel
+### Finding 5: The Worker Adoption Funnel Shows Where the Handoff Fails
 
 ![Worker Adoption Funnel](charts/04_worker_adoption_funnel.png)
 
-### Worker Engagement Depth vs Conversion
+This funnel reframes the product journey through the admin-to-worker lens. Of 966 organisations that started a trial, 848 had an admin create at least one shift. Of those, only 456 ever opened the mobile schedule. Only 477 had any worker-side activity at all, and only 211 had workers punch in or out. The drop from admin shift creation to mobile schedule view — 46% of organisations lost at that single step — is the handoff failing in plain sight. An admin built the schedule and nobody on the team ever opened it.
+
+### Finding 6: Worker Engagement Depth Shows a Weak Positive Trend
 
 ![Worker Depth Conversion](charts/05_worker_depth_conversion.png)
 
-There is a weak upward trend from depth score 2 onward, with organisations using 3 or more distinct worker activity types converting at 25.0%. However, numbers are too small at higher depth levels to draw firm conclusions.
+A worker depth score was constructed by counting how many distinct worker activity types each organisation used (scale of 0 to 5). Organisations at depth 3 convert at 25.0% compared to 21.6% for those at depth 0. There is a weak upward trend from depth 2 onward, but the sample sizes at higher depth levels are small (fewer than 75 organisations). These rates should be treated as indicative rather than conclusive.
 
-### Speed of Worker Adoption
+### Finding 7: When Workers Join, They Join Immediately
 
 ![Worker Adoption Speed](charts/06_worker_adoption_speed.png)
 
-When workers do join, they join quickly. The median time from first admin action to first worker action is less than one hour. 82% of handoffs happen on the same day as admin setup. The problem is not timing — it is that 51% of companies never bridge the gap at all.
+For the 477 organisations where workers did engage, the timing of that engagement was measured. The left panel shows the distribution of days-to-first-worker-activity for converters versus non-converters — both are heavily concentrated near zero. The right panel shows cumulative worker adoption curves across the trial: both groups plateau quickly. The median time from first admin action to first worker action is less than one hour, and 82% of handoffs happen on the same day as admin setup. The problem is not that workers are slow to join. The problem is that 51% of companies never attempt the handoff at all.
 
-### Admin vs Worker Split by Conversion Outcome
+### Finding 8: Admin and Worker Events Carry the Same Predictive Weight — Which Is Near Zero
 
 ![Admin vs Worker Split](charts/07_admin_vs_worker_split.png)
+
+The left panel compares average admin and worker event volumes between converters and non-converters. The middle panel shows the distribution of worker events as a share of total events. The right panel is a scatter plot of admin versus worker activity coloured by conversion outcome. In all three views, the two groups overlap almost completely. There is no region of the admin-worker activity space that is populated exclusively by converters.
+
+---
+
+## Statistical Analysis and Predictive Modelling
+
+### Predictive Model Comparison
+
+![Model Comparison](charts/08_model_comparison_worker_vs_admin.png)
+
+Three Random Forest models were trained: one using admin features only, one using worker features only, and one combining both. All three score between 0.51 and 0.52 ROC-AUC on 5-fold cross-validation — barely above the random chance baseline of 0.50. Adding worker features to admin features improves AUC by 0.005, which is not meaningful. The combined model does not outperform either subset.
+
+This result confirms what the univariate tests showed: neither admin behaviour nor worker behaviour, separately or together, can predict trial conversion. The variables that actually drive conversion (company size, acquisition channel, pricing, sales touchpoints) are not in the dataset.
+
+### Survival Analysis
+
+![Survival Analysis](charts/09_survival_worker_vs_admin.png)
+
+Kaplan-Meier survival curves were estimated separately for worker-active and admin-only organisations. Both curves follow nearly identical trajectories throughout the trial period. Both groups show a sharp drop in the survival curve (i.e., a spike in conversions) in the final few days — confirming the deadline-urgency pattern. Worker adoption status does not meaningfully shift the timing or probability of conversion at any point in the trial.
 
 ### The Handoff Gap
 
 ![Handoff Gap](charts/10_handoff_gap.png)
 
----
-
-## Statistical Analysis
-
-### Hypothesis Tests
-
-**Mann-Whitney U (Converters vs Non-Converters)**
-
-| Metric | U-statistic | p-value | Significant |
-|--------|-------------|---------|------------|
-| Total events | 78,944 | 0.851 | No |
-| Unique activities | 79,822 | 0.650 | No |
-| Unique activities | 79,822 | 0.650 | No |
-| Active days | 78,982 | 0.820 | No |
-| Time to first activity | 73,208 | 0.153 | No |
-
-**Chi-square Tests (Activity Performed vs Conversion)**
-
-No activity type achieves statistical significance at the 0.05 threshold. The activity with the strongest (non-significant) positive association is `Scheduling.Shift.Created` (chi-square = 0.78, p = 0.38). The activity with the most notable negative association is `Communication.Message.Created` (chi-square = 1.99, p = 0.16), suggesting that messaging-heavy organisations may be experiencing friction rather than engagement.
-
-### Survival Analysis
-
-![Kaplan-Meier](charts/11_kaplan_meier.png)
-
-Kaplan-Meier curves stratified by engagement level (above vs below median event count) show a modestly faster conversion trajectory for high-engagement organisations, but both groups converge near Day 30. The Cox Proportional Hazards model identifies `total_events` and `unique_activities` as having the highest hazard coefficients, though confidence intervals are wide and overlap substantially.
-
-![Cox PH Coefficients](charts/12_cox_ph_coefficients.png)
-
-### Clustering
-
-![Clustering](charts/16_clustering.png)
-
-K-Means clustering with k=4 (selected by elbow method) produces four segments with conversion rates between 20% and 23%. The differences across clusters are small and consistent with random variation. No cluster represents a meaningfully higher-converting behavioural profile.
-
-### Threshold Analysis
-
-![Threshold Analysis](charts/17_threshold_analysis.png)
-
-Organisations that create 100 or more shifts during their trial convert at 25.3% compared to 21% for lower-volume organisations. This is the closest thing to a meaningful threshold in the dataset, but it reflects power-user behaviour rather than a triggerable activation moment.
-
----
-
-## Predictive Modelling
-
-![Model Comparison Admin vs Worker](charts/08_model_comparison_worker_vs_admin.png)
-
-| Model | Features | CV ROC-AUC |
-|-------|----------|-----------|
-| Logistic Regression | All features | 0.486 |
-| Random Forest | All features | 0.480 |
-| Gradient Boosting | All features | 0.477 |
-| Random Forest | Admin features only | 0.515 |
-| Random Forest | Worker features only | 0.514 |
-| Random Forest | Admin + Worker combined | 0.520 |
-
-![Logistic Regression Coefficients](charts/13_logistic_regression.png)
-
-![Predictive Models Feature Importance](charts/14_predictive_models.png)
-
-![Model Comparison](charts/15_model_comparison.png)
-
-All models perform near random chance (0.50). Adding worker features to admin features produces a marginal improvement of 0.005 in AUC, which is not meaningful. The combined model does not outperform either subset in a practically significant way.
-
-The top features by Random Forest importance are `total_events`, `time_to_first_activity_hrs`, `unique_activities`, and `active_days`. These are the same features that show no significant difference between converters and non-converters in the univariate tests. The model is learning the average behaviour of the dataset, not a conversion signal.
-
-**Interpretation:** The absence of a predictive signal is itself the signal. It points directly to a data gap: the variables that actually drive conversion (company size, acquisition channel, pricing, sales touchpoints) are not in the dataset. Collecting these variables is more valuable than further modelling of existing behavioural data.
-
-### Survival Analysis by Worker Adoption
-
-![Survival Worker vs Admin](charts/09_survival_worker_vs_admin.png)
-
-The Kaplan-Meier survival curves stratified by worker adoption status show that worker-active and admin-only organisations follow nearly identical conversion trajectories throughout the trial. Both groups spike sharply in conversions in the final 9 days, confirming that the deadline effect dominates for both segments.
+The handoff gap measures the time between the first admin action and the first worker action. The left panel shows the distribution of this gap in days for converters versus non-converters. Both distributions are nearly identical and heavily right-skewed, with the majority of handoffs happening within hours. The right panel shows handoff speed buckets (same day, 1 to 3 days, 3 to 7 days, 7+ days) alongside their conversion rates. Conversion rates are broadly similar across all buckets. The speed of the handoff, once it happens, does not predict conversion.
 
 ---
 
 ## SQL Data Models
 
-The SQL layer is built in a dbt-compatible staging and mart architecture. It exists to translate the analytical findings into operational models that can live in a data warehouse and drive ongoing business monitoring.
-
-### Data Lineage
+The SQL layer translates the analytical findings into operational models designed to live in a data warehouse and drive ongoing business monitoring. The architecture follows dbt conventions with a staging layer and mart layer.
 
 ```
 raw.da_task (source)
@@ -344,75 +215,41 @@ raw.da_task (source)
             └── mart_worker_adoption  (mart: admin vs worker segmentation)
 ```
 
-### `stg_trial_events`
+### `stg_trial_events` — `sql/stg_trial_events.sql`
 
-**File:** `sql/stg_trial_events.sql`
-
-**Purpose:** This staging model is the single source of truth for cleaned event data. It exists to separate data quality logic from analytical logic. Any downstream mart can reference this model without needing to repeat deduplication, datetime parsing, or boundary validation.
-
-**What it does:**
-- Deduplicates exact duplicate rows using `ROW_NUMBER()` partitioned by all meaningful fields
-- Parses and casts all datetime columns with explicit null handling for the `converted_at` field (which is null for non-converters)
-- Removes events outside the trial window (before `trial_start` or after `trial_end`)
-- Adds derived fields used by multiple downstream models: `trial_day_number`, `hours_since_trial_start`, and `days_to_conversion`
+The staging model is the single source of truth for cleaned event data. It separates data quality logic from analytical logic so that any downstream mart can reference it without repeating deduplication or validation. It deduplicates exact duplicate rows, parses all datetime columns, removes events outside the trial window, and adds derived fields used by multiple downstream models: `trial_day_number`, `hours_since_trial_start`, and `days_to_conversion`.
 
 **Grain:** One row per organisation per event, deduplicated.
 
-### `mart_trial_goals`
+### `mart_trial_goals` — `sql/mart_trial_goals.sql`
 
-**File:** `sql/mart_trial_goals.sql`
+This mart defines five data-driven trial goals and tracks whether each organisation completed them. The goals were chosen based on product-value logic rather than pure statistical lift, because no individual behaviour achieved statistical significance as a conversion predictor.
 
-**Purpose:** This mart translates the analytical findings into a trackable definition of what "good trial behaviour" looks like. The five goals were defined based on what the analysis identified as the most meaningful product interactions, grounded in product-value logic rather than pure statistical lift.
+Goal 1 (Created at least one shift) is the core admin action and the moment the product moves from exploration to actual use. 87.8% of trialling organisations hit this, and converters do so at a slightly higher rate.
 
-**The rationale for each goal:**
+Goal 2 (Viewed the mobile schedule at least once) addresses the largest friction point in the funnel. Only 47% of organisations that created shifts also opened the mobile schedule. This step represents the admin-to-worker handoff. Without it, the product has only ever been used by one person.
 
-Goal 1 (Created at least one shift) is the single most important admin action. 87.8% of trialling organisations hit this, and converters do so at a slightly higher rate (89.8% vs 87.2%). It represents the moment the admin has moved from exploration to actual use. An organisation that never creates a shift has not used the product for its core purpose.
+Goal 3 (Set workforce availability at least once) signals that employees are configuring their own preferences. This is a leading indicator of genuine workforce adoption rather than passive schedule viewing.
 
-Goal 2 (Viewed the mobile schedule at least once) addresses the largest single friction point in the funnel. Only 47% of organisations that created shifts also opened the mobile schedule. This step represents the admin-to-worker handoff. Without it, the product has only ever been used by one person.
+Goal 4 (Active on 3 or more distinct days) captures sustained engagement. A threshold analysis validated that 3 active days corresponds to meaningfully higher long-term conversion likelihood compared to single-session trials.
 
-Goal 3 (Set workforce availability at least once) signals that employees are configuring their own preferences within the platform. This is a leading indicator that the product is moving from admin-only configuration to genuine workforce adoption.
-
-Goal 4 (Active on 3 or more distinct days) captures sustained engagement rather than a single-session trial. Threshold analysis validated that 3 active days corresponds to meaningfully higher long-term conversion likelihood compared to 1 or 2 active days.
-
-Goal 5 (Used 3 or more distinct activity types) captures breadth of platform exploration. Organisations that explore multiple features show a +1.4 percentage point conversion uplift and represent the strongest behavioural predictor in the logistic regression model.
+Goal 5 (Used 3 or more distinct activity types) captures breadth of platform exploration. Organisations that explore multiple features show the strongest behavioural predictor signal in the logistic regression model.
 
 **Grain:** One row per `organization_id`.
 
-**Key fields:** `goal_1_created_shift` through `goal_5_explored_3plus_features`, `goals_completed_count`, and all supporting diagnostic signals.
+### `mart_trial_activation` — `sql/mart_trial_activation.sql`
 
-### `mart_trial_activation`
+This mart defines Trial Activation as the completion of all five goals and assigns each organisation to an activation tier: Fully Activated (all 5 goals), Partially Activated (3 to 4 goals), Early Engagement (1 to 2 goals), and No Engagement (0 goals). It exists so that CS and product teams can query it directly without re-running analysis.
 
-**File:** `sql/mart_trial_activation.sql`
-
-**Purpose:** This mart defines "Trial Activation" as the completion of all five goals and assigns each organisation to an activation tier. It is designed to be the operational layer that CS and product teams can query directly.
-
-**Why a composite activation definition:** No single behaviour predicts conversion. But a composite definition covering the core scheduling action, the mobile handoff, workforce configuration, sustained use, and feature breadth captures the full range of "has this organisation experienced core product value?" That question, even if it does not directly predict trial conversion, is the correct measure of product health during a trial.
-
-**Activation tiers:**
-- Fully Activated: all 5 goals complete
-- Partially Activated: 3 to 4 goals complete
-- Early Engagement: 1 to 2 goals complete
-- No Engagement: 0 goals complete
-
-**Intervention flags built into the model:**
-- `is_near_activated_not_converted`: 3+ goals complete but not yet converted. High-value CS target.
-- `is_zero_engagement`: zero events or active days. Requires immediate re-engagement outreach.
-- `is_activated_churned`: all 5 goals complete but did not convert. Requires post-mortem analysis.
+Intervention flags built into the model include `is_near_activated_not_converted` (3+ goals complete but not yet converted, the highest-value CS target), `is_zero_engagement` (requires immediate re-engagement outreach), and `is_activated_churned` (all 5 goals complete but did not convert, requiring post-mortem analysis).
 
 **Grain:** One row per `organization_id`.
 
-### `mart_worker_adoption`
+### `mart_worker_adoption` — `sql/mart_worker_adoption.sql`
 
-**File:** `sql/mart_worker_adoption.sql`
+This mart operationalises the admin vs worker segmentation. It classifies every event as admin-side or worker-side, aggregates to the organisation level, and produces the three-archetype classification. It exists as a separate mart because the admin/worker distinction should be a live operational metric, not just an analytical one. CS and product teams need to know in real time which organisations have bridged the admin-to-worker gap and which have not.
 
-**Purpose:** This mart operationalises the admin vs worker segmentation framework. It classifies every event in the staging layer as either admin-side or worker-side based on product logic, then aggregates to the organisation level to produce the three-archetype classification.
-
-**Why this model exists as a separate mart:** The admin/worker distinction is not just an analytical concept. It should be a live operational metric. Product and CS teams need to know, in real time, which organisations have bridged the admin-to-worker gap and which have not. This model makes that visible in the warehouse without requiring analysts to re-run the classification logic each time.
-
-**Intervention flags:**
-- `flag_admin_only_not_converted`: admin activity present, zero worker activity, not converted. Primary target for the 48-hour worker onboarding nudge.
-- `flag_no_punchclock_not_converted`: workers joined but never used the punch clock. Secondary target for feature education outreach.
-- `flag_deep_worker_not_converted`: worker depth score of 3 or above but did not convert. Analytically interesting for further investigation.
+Intervention flags include `flag_admin_only_not_converted` (the primary target for the 48-hour onboarding nudge), `flag_no_punchclock_not_converted` (workers joined but never used the punch clock, a secondary feature education target), and `flag_deep_worker_not_converted` (worker depth score of 3 or above but did not convert, analytically interesting for further investigation).
 
 **Grain:** One row per `organization_id`.
 
@@ -422,10 +259,10 @@ Goal 5 (Used 3 or more distinct activity types) captures breadth of platform exp
 
 ### Recommendation 1: Capture the Missing Data (Priority: Immediate)
 
-The single highest-leverage action available is to start collecting the data that this analysis proved matters. The current event log captures what users do inside the product. It captures nothing about why they decided to trial it, how large their company is, what price they were shown, or whether a salesperson spoke to them.
+The current event log captures what users do inside the product. It captures nothing about why they decided to trial it, how large their company is, what price they were shown, or whether a salesperson spoke to them. These are almost certainly the variables that explain conversion.
 
 **Actions:**
-- Add company size (number of employees) and industry to the signup flow
+- Add company size and industry to the signup flow
 - Instrument UTM parameter capture at the signup URL to record acquisition source
 - Integrate CRM data to log whether a sales or CS touchpoint occurred during the trial
 - Record the pricing tier and plan shown to each trialling organisation
@@ -434,43 +271,41 @@ The single highest-leverage action available is to start collecting the data tha
 
 ### Recommendation 2: Fix the Worker Onboarding Handoff (Priority: This Month)
 
-51% of trialling organisations never got a worker onto the platform. When workers do join, they join within hours of admin setup. The problem is not slow adoption — it is the connection never being made. This is an operational gap that can be closed with a single automated email.
+51% of trialling organisations never got a worker onto the platform. When workers do join, they join within hours of admin setup. The problem is not slow adoption — it is that the connection is never made. This is an operational gap that can be closed with a single automated email.
 
 **The trigger:** Admin creates at least one shift AND no worker-side activity has been recorded within 48 hours.
 
-**The message:** "Your schedule is live. Here is how to share it with your team." Include a direct link to the mobile app download and a one-click "share schedule" feature if not already present.
+**The message:** "Your schedule is live. Here is how to share it with your team." Include a direct link to the mobile app download.
 
-**Expected outcome:** Reduction in the admin-only rate from 51%. Improved post-conversion retention for companies that do activate their workforce. This does not directly drive trial conversion but protects long-term revenue per customer.
+**Expected outcome:** Reduction in the admin-only rate from 51%. Improved post-conversion retention for companies that activate their workforce. This does not directly drive trial conversion but protects long-term revenue per customer.
 
 ### Recommendation 3: Deploy CS Outreach at Days 14 to 21 (Priority: This Quarter)
 
-52% of conversions happen in the final 9 days of the trial, driven by deadline urgency. The optimal window for sales and CS intervention is Days 14 to 21, before that urgency sets in. This gives time to address pricing questions, remove blockers, and move the decision earlier in the trial timeline.
+The survival analysis confirms that conversion spikes sharply at trial expiry. The optimal window for intervention is Days 14 to 21, before that urgency sets in, giving time to address pricing questions, remove blockers, and move decisions earlier in the timeline.
 
-**Targeting:** Flag all organisations at Day 14 that are active (have had at least one event in the last 7 days) but have not yet converted. Prioritise the Partially Activated segment (3 to 4 goals complete) as the highest-conversion-probability group within the non-converted population.
+**Targeting:** Flag all organisations at Day 14 that are active but have not yet converted. Prioritise the Partially Activated segment (3 to 4 goals complete) as the highest-conversion-probability group within the non-converted population.
 
-**Additional focus:** Organisations showing the 8 to 14 day engagement fade pattern currently convert at only 9.1%. These are companies that engaged meaningfully in week one and then went quiet. A targeted Day 10 alert for "was active, now silent" organisations would catch this group before they disengage permanently.
-
-**Expected outcome:** Shift some Day 30 conversions earlier in the trial. Recover a portion of mid-trial faders. Reduce dependency on deadline urgency as the primary conversion mechanism.
+**Expected outcome:** Shift some Day 30 conversions earlier. Reduce dependency on deadline urgency as the primary conversion mechanism.
 
 ---
 
 ## Limitations and Honest Caveats
 
-**No demographic or firmographic data.** The dataset contains no information about company size, industry, geography, or team size. These variables almost certainly explain a significant share of conversion variance. The absence of a behavioural signal does not mean no signal exists — it means the signal is in data we do not have.
+**No demographic or firmographic data.** The dataset contains no information about company size, industry, or geography. These variables almost certainly explain a significant share of conversion variance that the behavioural signals cannot.
 
-**No acquisition source data.** Whether a company arrived via a paid ad, an organic search, a referral, or a sales outreach is likely a strong predictor of intent and conversion likelihood. This is entirely absent from the current dataset.
+**No acquisition source data.** Whether a company arrived via a paid ad, organic search, referral, or sales outreach is absent entirely. This is likely a strong predictor of intent.
 
-**No pricing or plan information.** The conversion decision is fundamentally a value-for-money assessment. Without knowing what price each organisation was shown, we cannot model the most important variable in that assessment.
+**No pricing or plan information.** The conversion decision is a value-for-money assessment. Without knowing what price each organisation was shown, the most important variable in that assessment cannot be modelled.
 
-**No CRM or sales interaction data.** Whether a human spoke to a trialling organisation during the trial is likely one of the strongest conversion predictors available. It is not recorded in the current dataset.
+**No CRM or sales interaction data.** Whether a human spoke to a trialling organisation during the trial is not recorded. This is likely one of the strongest conversion predictors available.
 
-**`Mobile.Schedule.Loaded` classification.** This activity was classified as a worker action because it represents an employee viewing their schedule on the mobile app. However, an admin could also open the mobile view to check how the schedule looks to their team. This inflates the worker activity count and means the true rate of worker-only adoption is likely lower than 49%.
+**`Mobile.Schedule.Loaded` classification.** This activity was classified as a worker action, but an admin could also open the mobile view to check how the schedule looks to their team. This inflates the worker activity count and means the true rate of worker-only adoption is likely lower than 49%.
 
-**No user-level granularity.** The dataset is at the organisation level. We cannot distinguish between one worker using the app 50 times and 50 workers using it once each. The worker adoption classification is therefore a minimum bound on engagement, not a precise measure of workforce reach.
+**No user-level granularity.** The dataset is at the organisation level. One worker using the app 50 times and 50 workers using it once each look identical. The worker adoption classification is a minimum bound on engagement, not a precise measure of workforce reach.
 
-**No post-conversion data.** The analysis covers the trial period only. The hypothesis that worker adoption predicts post-conversion retention is analytically well-motivated but cannot be tested without renewal, expansion, and churn data from paying customers. Connecting this analysis to post-conversion outcomes is the most important next step.
+**No post-conversion data.** The hypothesis that worker adoption predicts post-conversion retention is analytically well-motivated but cannot be tested without renewal and churn data from paying customers. Connecting this analysis to post-conversion outcomes is the most important next step.
 
-**Small sample sizes at high worker depth.** Only 73 organisations reached a worker depth score of 3 or above. Conversion rates at these levels (25.0% at depth 3, 23.1% at depth 4) should be treated as indicative rather than conclusive.
+**Small sample sizes at high worker depth.** Only 73 organisations reached a worker depth score of 3 or above. Conversion rates at these levels should be treated as indicative rather than conclusive.
 
 ---
 
@@ -486,17 +321,42 @@ seaborn>=0.12.0
 scipy>=1.10.0
 scikit-learn>=1.3.0
 lifelines>=0.27.0
-statsmodels>=0.14.0
 ```
 
+### Installation
+
+```bash
+git clone https://github.com/your-username/trial-conversion-analysis.git
+cd trial-conversion-analysis
+pip install -r requirements.txt
+```
 
 ### Running the Analysis
 
-Place the raw data file `DA_task.csv` in the root directory, then run code inside the:
+Place the raw data file `DA_task.csv` in the root directory, then run:
 
 ```bash
-untitled.ipynb
+python worker_analysis.py
 ```
+
+All 12 charts are saved to `charts/`. The org-level feature matrix is saved to `data/org_worker_features.csv`.
+
+### Charts Produced
+
+| File | Section | What It Shows |
+|------|---------|---------------|
+| `charts/01_conversion_overview.png` | Executive Summary | Overall conversion rate, event volume and active days distributions |
+| `charts/02_feature_distributions.png` | Key Findings | Boxplots of key metrics — converters vs non-converters |
+| `charts/01_worker_adoption_headline.png` | Key Findings | Core admin/worker finding, org split, worker activity breakdown |
+| `charts/02_worker_activity_uplift.png` | Key Findings | Conversion uplift and rates per worker activity type |
+| `charts/03_three_archetypes.png` | Key Findings | Conversion rate, org distribution, event volume by archetype |
+| `charts/04_worker_adoption_funnel.png` | Key Findings | Worker adoption funnel from trial start to conversion |
+| `charts/05_worker_depth_conversion.png` | Key Findings | Conversion rate and org count by worker depth score |
+| `charts/06_worker_adoption_speed.png` | Key Findings | Timing of first worker activity and cumulative adoption curve |
+| `charts/07_admin_vs_worker_split.png` | Key Findings | Event volume, worker share distribution, and scatter by outcome |
+| `charts/08_model_comparison_worker_vs_admin.png` | Modelling | ROC-AUC comparison across admin-only, worker-only, combined models |
+| `charts/09_survival_worker_vs_admin.png` | Modelling | Kaplan-Meier survival curves for worker-active vs admin-only orgs |
+| `charts/10_handoff_gap.png` | Modelling | Handoff gap distribution and conversion rate by handoff speed |
 
 ---
 
