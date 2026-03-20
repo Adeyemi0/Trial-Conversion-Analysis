@@ -29,7 +29,7 @@ This project analyses trial-to-paid conversion behaviour across **966 trialling 
 
 ![Conversion Overview](charts/01_conversion_overview.png)
 
-The chart above immediately surfaces the scale of the problem. The overall conversion rate is **21.3%** — meaning 760 out of 966 trialling organisations did not pay. Event volume and active days look nearly identical between converters and non-converters, which is the first sign that in-app behaviour alone will not explain who converts.
+The chart above immediately surfaces the scale of the problem. The overall conversion rate is **21.3%**, meaning 760 out of 966 trialling organisations did not pay. Event volume and active days look nearly identical between converters and non-converters, which is the first sign that in-app behaviour alone will not explain who converts.
 
 The analytical framework built here is grounded in a structural observation about this product: it serves two fundamentally different users, admins and workers, and treating all activity as equivalent masks that distinction entirely. Splitting events by actor type reveals that **51% of trialling organisations never got a single employee onto the platform** after the admin set it up. The product was configured for a workforce that never arrived.
 
@@ -58,9 +58,9 @@ The motivation for building this analysis around that admin/worker distinction c
 
 > **What does a company do during its trial that predicts whether it will pay?**
 
-The assumption going in was straightforward: companies that engage more deeply with the product, use more features, stay active for more days, and get more employees onto the platform should be more likely to convert. This is the standard product-led growth hypothesis.
+The assumption going in was that companies that engage more deeply with the product, use more features, stay active for more days, and get more employees onto the platform should be more likely to convert. This is the standard product-led growth hypothesis.
 
-This analysis tests that hypothesis rigorously across multiple dimensions, including splitting activity by user type, measuring worker engagement depth, modelling time-to-adoption, and training three separate machine learning models. The answer challenges the hypothesis at every level — and the insight that falls out of that challenge is more useful than a simple confirmation would have been.
+This analysis tests that hypothesis rigorously across multiple dimensions, including splitting activity by user type, measuring worker engagement depth, modelling time-to-adoption, and training three separate machine learning models. The answer challenges the hypothesis at every level and the insight that falls out of that challenge is more useful than a simple confirmation would have been.
 
 ---
 
@@ -123,7 +123,7 @@ Admin actions (creating shifts, approving timesheets, applying templates) are co
 
 Only worker adoption creates genuine switching costs. If the admin is the only user, the product can be cancelled with a single decision by one person. If workers are clocking in through it every day, cancellation means disrupting the live operations of the entire workforce.
 
-This framework did not produce the conversion signal that was expected — worker adoption proved not to predict trial conversion. But the framework itself is still correct. The implication has shifted from conversion to retention: worker adoption is likely the key variable for predicting which paying customers stay versus which ones cancel at renewal. That question cannot be answered without post-conversion data, but the groundwork for answering it is laid here.
+This framework did not produce the conversion signal that was expected worker adoption proved not to predict trial conversion. But the framework itself is still correct. The implication has shifted from conversion to retention, worker adoption is likely the key variable for predicting which paying customers stay versus which ones cancel at renewal. That question cannot be answered without post-conversion data, but the groundwork for answering it is laid here.
 
 ---
 
@@ -139,7 +139,7 @@ Boxplots of total events, admin events, worker events, and active days show near
 
 ![Worker Adoption Headline](charts/01_worker_adoption_headline.png)
 
-This is the central finding. The left panel shows conversion rates of 21.7% for admin-only organisations versus 21.0% for organisations with worker activity — a difference of less than one percentage point that is not statistically significant (chi-square p = 0.85). The middle panel shows that 51% of organisations never had a single worker engage with the product. The right panel shows that of all worker activity in the dataset, 85% is a single action: `Mobile.Schedule.Loaded`. Workers are primarily viewing their schedules passively, not self-managing.
+This is the central finding. The left panel shows conversion rates of 21.7% for admin-only organisations versus 21.0% for organisations with worker activity, a difference of less than one percentage point that is not statistically significant (chi-square p = 0.85). The middle panel shows that 51% of organisations never had a single worker engage with the product. The right panel shows that of all worker activity in the dataset, 85% is a single action, `Mobile.Schedule.Loaded`. Workers are primarily viewing their schedules passively, not self-managing.
 
 ### Finding 3: No Individual Worker Activity Drives Conversion
 
@@ -157,7 +157,7 @@ Classifying organisations by which side of the product was used reveals three ar
 
 ![Worker Adoption Funnel](charts/04_worker_adoption_funnel.png)
 
-This funnel reframes the product journey through the admin-to-worker lens. Of 966 organisations that started a trial, 848 had an admin create at least one shift. Of those, only 456 ever opened the mobile schedule. Only 477 had any worker-side activity at all, and only 211 had workers punch in or out. The drop from admin shift creation to mobile schedule view — 46% of organisations lost at that single step — is the handoff failing in plain sight. An admin built the schedule and nobody on the team ever opened it.
+This funnel reframes the product journey through the admin-to-worker lens. Of 966 organisations that started a trial, 848 had an admin create at least one shift. Of those, only 456 ever opened the mobile schedule. Only 477 had any worker-side activity at all, and only 211 had workers punch in or out. The drop from admin shift creation to mobile schedule view — 46% of organisations lost at that single step, is the handoff failing in plain sight. An admin built the schedule and nobody on the team ever opened it.
 
 ### Finding 6: Worker Engagement Depth Shows a Weak Positive Trend
 
@@ -169,9 +169,9 @@ A worker depth score was constructed by counting how many distinct worker activi
 
 ![Worker Adoption Speed](charts/06_worker_adoption_speed.png)
 
-For the 477 organisations where workers did engage, the timing of that engagement was measured. The left panel shows the distribution of days-to-first-worker-activity for converters versus non-converters — both are heavily concentrated near zero. The right panel shows cumulative worker adoption curves across the trial: both groups plateau quickly. The median time from first admin action to first worker action is less than one hour, and 82% of handoffs happen on the same day as admin setup. The problem is not that workers are slow to join. The problem is that 51% of companies never attempt the handoff at all.
+For the 477 organisations where workers did engage, the timing of that engagement was measured. The left panel shows the distribution of days-to-first-worker-activity for converters versus non-converters, both are heavily concentrated near zero. The right panel shows cumulative worker adoption curves across the trial, both groups plateau quickly. The median time from first admin action to first worker action is less than one hour, and 82% of handoffs happen on the same day as admin setup. The problem is not that workers are slow to join. The problem is that 51% of companies never attempt the handoff at all.
 
-### Finding 8: Admin and Worker Events Carry the Same Predictive Weight — Which Is Near Zero
+### Finding 8: Admin and Worker Events Carry the Same Predictive Weight Which Is Near Zero
 
 ![Admin vs Worker Split](charts/07_admin_vs_worker_split.png)
 
@@ -193,7 +193,7 @@ This result confirms what the univariate tests showed: neither admin behaviour n
 
 ![Survival Analysis](charts/09_survival_worker_vs_admin.png)
 
-Kaplan-Meier survival curves were estimated separately for worker-active and admin-only organisations. Both curves follow nearly identical trajectories throughout the trial period. Both groups show a sharp drop in the survival curve (i.e., a spike in conversions) in the final few days — confirming the deadline-urgency pattern. Worker adoption status does not meaningfully shift the timing or probability of conversion at any point in the trial.
+Kaplan-Meier survival curves were estimated separately for worker-active and admin-only organisations. Both curves follow nearly identical trajectories throughout the trial period. Both groups show a sharp drop in the survival curve (i.e., a spike in conversions) in the final few days, confirming the deadline-urgency pattern. Worker adoption status does not meaningfully shift the timing or probability of conversion at any point in the trial.
 
 ### The Handoff Gap
 
@@ -271,7 +271,7 @@ The current event log captures what users do inside the product. It captures not
 
 ### Recommendation 2: Fix the Worker Onboarding Handoff (Priority: This Month)
 
-51% of trialling organisations never got a worker onto the platform. When workers do join, they join within hours of admin setup. The problem is not slow adoption — it is that the connection is never made. This is an operational gap that can be closed with a single automated email.
+51% of trialling organisations never got a worker onto the platform. When workers do join, they join within hours of admin setup. The problem is not slow adoption  it is that the connection is never made. This is an operational gap that can be closed with a single automated email.
 
 **The trigger:** Admin creates at least one shift AND no worker-side activity has been recorded within 48 hours.
 
@@ -326,20 +326,20 @@ lifelines>=0.27.0
 ### Installation
 
 ```bash
-git clone https://github.com/your-username/trial-conversion-analysis.git
+git clone https://github.com/Adeyemi0/trial-conversion-analysis.git
 cd trial-conversion-analysis
 pip install -r requirements.txt
 ```
 
 ### Running the Analysis
 
-Place the raw data file `DA_task.csv` in the root directory, then run:
+Place the raw data file `DA task.csv` in the root directory, then run:
 
 ```bash
 python worker_analysis.py
 ```
 
-All 12 charts are saved to `charts/`. The org-level feature matrix is saved to `data/org_worker_features.csv`.
+All 12 charts are saved to `charts/`. 
 
 ### Charts Produced
 
