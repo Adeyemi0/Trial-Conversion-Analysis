@@ -40,7 +40,7 @@ Three concrete, immediately executable recommendations emerge from the full anal
 
 ---
 
-## Business Context and Motivation
+## Business Context 
 
 This is a B2B SaaS product for workforce scheduling. Businesses use it to build rotas, manage shift assignments, handle time and attendance, process absence requests, and export payroll. It serves two fundamentally different users within the same account.
 
