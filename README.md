@@ -31,7 +31,7 @@ This project analyses trial-to-paid conversion behaviour across **966 trialling 
 
 The chart above immediately surfaces the scale of the problem. The overall conversion rate is **21.3%**, meaning 760 out of 966 trialling organisations did not pay. Event volume and active days look nearly identical between converters and non-converters, which is the first sign that in-app behaviour alone will not explain who converts.
 
-The analytical framework built here is grounded in a structural observation about this product: it serves two fundamentally different users, admins and workers, and treating all activity as equivalent masks that distinction entirely. Splitting events by actor type reveals that **51% of trialling organisations never got a single employee onto the platform** after the admin set it up. The product was configured for a workforce that never arrived.
+The analytical framework built here is grounded in a structural observation about this product: it serves two fundamentally different users, admins and workers, and treating all activity as equivalent masks that distinction entirely. Splitting events by actor type reveals that **51% of trialling organisations never got a single employee onto the platform** after the admin set it up. The product was configured for a workforce that never used it.
 
 Three concrete, immediately executable recommendations emerge from the full analysis:
 - Capture company size, industry, and acquisition source at signup
